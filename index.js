@@ -1032,6 +1032,9 @@ function renderPagination(totalItems, totalPages) {
     pageBtn.className = `page-num ${currentPage === i ? "active" : ""}`;
     pageBtn.textContent = i;
     pageBtn.setAttribute("aria-label", `Page ${i}`);
+    if (currentPage === i) {
+      pageBtn.setAttribute("aria-current", "page");
+    }
     pageBtn.addEventListener("click", (e) => {
       e.preventDefault();
       currentPage = i;
@@ -1370,6 +1373,101 @@ function renderRecentProjects() {
 
     recentGrid.appendChild(card);
   });
+
+  renderRecommendationsForLatestRecentProject();
+}
+
+function renderRecommendationsForProject(project) {
+  const container = document.getElementById("recommendationsContainer");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  const header = document.createElement("div");
+  header.className = "projects-intro";
+  header.innerHTML = `
+    <p class="section-label">Build Similar Projects</p>
+    <h2 class="section-title">${project ? `Projects like ${escapeHTML(
+      project.projectName || project.name || "this project",
+    )}` : "Related Projects"}</h2>
+  `;
+  container.appendChild(header);
+
+  if (!project) {
+    const placeholder = document.createElement("p");
+    placeholder.className = "empty-state";
+    placeholder.textContent =
+      "Click a project card to discover related builds based on technologies and project type.";
+    container.appendChild(placeholder);
+    return;
+  }
+
+function getRecommendations(project, allProjects) {
+  if (!project || !allProjects) return [];
+  return allProjects
+    .filter(function (p) {
+      if (p.id === project.id) return false;
+      const shared = (p.techStack || []).filter(function (t) {
+        return (project.techStack || []).includes(t);
+      });
+      return shared.length > 0 || p.category === project.category;
+    })
+    .slice(0, 6);
+}
+
+  const recommendations = getRecommendations(project, PROJECTS);
+  if (!recommendations.length) {
+    const noRecommendations = document.createElement("p");
+    noRecommendations.className = "empty-state";
+    noRecommendations.textContent =
+      "No similar projects were found for this selection yet.";
+    container.appendChild(noRecommendations);
+    return;
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "project-grid";
+
+  recommendations.forEach((recommendation) => {
+    const category = getCategoryFromTags(
+      recommendation.techStack,
+      recommendation.projectName,
+    );
+    const { html, demoUrl, sourceOnly } = buildProjectCardHTML({
+      day: recommendation.day,
+      name: recommendation.projectName,
+      url: recommendation.projectPath,
+      tags: recommendation.techStack,
+      category,
+      isBookmarked: bookmarkedProjects.some(
+        (item) => normalizeProjectEntry(item).day === recommendation.day,
+      ),
+      showDescription: true,
+    });
+
+    const card = document.createElement("div");
+    card.className = sourceOnly
+      ? "project-card source-only visible"
+      : "project-card visible";
+    card.innerHTML = html;
+    card.setAttribute("tabindex", "0");
+    card.setAttribute("role", "button");
+    attachProjectCardInteraction(card, demoUrl, recommendation);
+    grid.appendChild(card);
+  });
+
+  container.appendChild(grid);
+}
+
+function renderRecommendationsForLatestRecentProject() {
+  const validRecent = getRecentProjectsWithinWindow();
+  if (validRecent.length === 0) {
+    renderRecommendationsForProject(null);
+    return;
+  }
+
+  const latestProject = resolveProjectRecord(validRecent[0]);
+  renderRecommendationsForProject(latestProject);
 }
 
 // Clean up after grid references are initialized.
@@ -1500,17 +1598,17 @@ function resetAllFilters() {
 
   // 3. Reset Tech Stack dropdown select
   const techStack = document.getElementById("techStackFilter");
-  if (techStack) techStack.value = "all";
+  if (techStack) techStack.selectedIndex = 0;
   techStackFilter = "all";
 
   // 4. Reset Difficulty dropdown select
   const difficultyElement = document.getElementById("difficultyFilter");
-  if (difficultyElement) difficultyElement.value = "all";
+  if (difficultyElement) difficultyElement.selectedIndex = 0;
   difficultyFilter = "all";
 
   // 5. Reset Sorting to default
   const sortSelect = document.getElementById("sortProjects");
-  if (sortSelect) sortSelect.value = "default";
+  if (sortSelect) sortSelect.selectedIndex = 0;
   sortOption = "default";
 
   // 6. Sync URL
